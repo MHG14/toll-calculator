@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/mhg14/toll-calculator/types"
 )
 
@@ -13,7 +13,7 @@ type DataProducer interface {
 
 type KafkaProducer struct {
 	producer *kafka.Producer
-	topic string
+	topic    string
 }
 
 func NewKafkaProducer(topic string) (DataProducer, error) {
@@ -38,7 +38,7 @@ func NewKafkaProducer(topic string) (DataProducer, error) {
 
 	return &KafkaProducer{
 		producer: p,
-		topic: topic,
+		topic:    topic,
 	}, nil
 }
 
