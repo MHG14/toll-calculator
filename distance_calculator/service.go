@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/mhg14/toll-calculator/types"
@@ -15,7 +14,7 @@ type CalculatorService struct {
 	prevPoint []float64
 }
 
-func NewCalculatorService() *CalculatorService {
+func NewCalculatorService() CalculatorServicer {
 	return &CalculatorService{}
 }
 
