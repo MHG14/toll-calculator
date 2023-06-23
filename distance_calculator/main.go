@@ -3,9 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+
+	"github.com/mhg14/toll-calculator/aggregator/client"
 )
 
-const kafkaTopic = "obudata"
+const (
+	kafkaTopic         = "obudata"
+	aggregatorEndpoint = "http://127.0.0.1:5000/aggregate"
+)
 
 func main() {
 	var (
@@ -14,7 +19,9 @@ func main() {
 	)
 	svc = NewCalculatorService()
 	svc = NewLogMiddleware(svc)
-	kafkaConsumer, err := NewKafkaConsumer(kafkaTopic, svc)
+	client := client.NewClient(aggregatorEndpoint)
+
+	kafkaConsumer, err := NewKafkaConsumer(kafkaTopic, svc, client)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -18,15 +18,13 @@ type InvoiceAggregator struct {
 	store Storer
 }
 
-func NewInvoiceAggregator(store Storer) *InvoiceAggregator {
+func NewInvoiceAggregator(store Storer) Aggregator {
 	return &InvoiceAggregator{
 		store: store,
 	}
 }
 
-
 func (i *InvoiceAggregator) AggregateDistance(distance types.Distance) error {
-	fmt.Println("processing and inserting distance in the storage")
+	fmt.Println("processing and inserting distance in the storage", distance)
 	return i.store.Insert(distance)
 }
-
