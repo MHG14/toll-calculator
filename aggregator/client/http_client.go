@@ -2,29 +2,31 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/mhg14/toll-calculator/types"
+	"github.com/sirupsen/logrus"
 )
 
-type Client struct {
+type HTTPClient struct {
 	Endpoint string
 }
 
-func NewClient(endpoint string) *Client {
-	return &Client{
+func NewHTTPClient(endpoint string) *HTTPClient {
+	return &HTTPClient{
 		Endpoint: endpoint,
 	}
 }
 
-func (c *Client) AggregateInvoice(distance types.Distance) error {
-	b, err := json.Marshal(distance)
+func (c *HTTPClient) Aggregate(ctx context.Context, aggReq *types.AggregateRequest) error {
+	b, err := json.Marshal(aggReq)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", c.Endpoint, bytes.NewReader(b))
+	req, err := http.NewRequest("POST", c.Endpoint+"/aggregate", bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -37,4 +39,34 @@ func (c *Client) AggregateInvoice(distance types.Distance) error {
 		return fmt.Errorf("the service responded with a non 200 status code %d", res.StatusCode)
 	}
 	return nil
+}
+
+func (c *HTTPClient) GetInvoice(ctx context.Context, id int) (*types.Invoice, error) {
+	invReq := types.GetInvoiceRequest{
+		OBUID: int32(id),
+	}
+	b, err := json.Marshal(&invReq)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoint := fmt.Sprintf("%s/%s?obu=%d", c.Endpoint, "invoice", id)
+	logrus.Infof("requesting get invoice -> %s", endpoint)
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("the service responded with a non 200 status code %d", resp.StatusCode)
+	}
+	var invoice types.Invoice
+	if err := json.NewDecoder(resp.Body).Decode(&invoice); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return &invoice, nil
 }

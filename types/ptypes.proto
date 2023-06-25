@@ -7,6 +7,10 @@ service Aggregator {
     rpc Aggregate(AggregateRequest) returns (None);
 }
 
+message GetInvoiceRequest {
+    int32 OBUID = 1;
+}
+
 
 message AggregateRequest {
     int32 OBUID = 1;

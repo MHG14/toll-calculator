@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/mhg14/toll-calculator/types"
 )
 
@@ -15,11 +17,11 @@ func NewGRPCAggregatorServer(svc Aggregator) *GRPCAggregatorServer {
 	}
 }
 
-func (s *GRPCAggregatorServer) AggregateDistance(req *types.AggregateRequest) (error) {
+func (s *GRPCAggregatorServer) Aggregate(ctx context.Context, req *types.AggregateRequest) (*types.None, error) {
 	distance := types.Distance{
 		OBUID: int(req.OBUID),
 		Value: req.Value,
 		Unix:  req.Unix,
 	}
-	return s.svc.AggregateDistance(distance)
+	return &types.None{}, s.svc.AggregateDistance(distance)
 }
