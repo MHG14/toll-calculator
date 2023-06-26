@@ -13,6 +13,7 @@ import (
 
 	"github.com/mhg14/toll-calculator/aggregator/client"
 	"github.com/mhg14/toll-calculator/types"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 )
 
@@ -23,9 +24,9 @@ func main() {
 	flag.Parse()
 	store := NewMemoryStore()
 	var (
-		svc Aggregator
+		svc = NewInvoiceAggregator(store)
 	)
-	svc = NewInvoiceAggregator(store)
+	svc = NewMetricsMiddleware(svc)
 	svc = NewLogMiddleware(svc)
 	go makeGRPCTransport(*grpcListenAddr, svc)
 
@@ -40,7 +41,7 @@ func main() {
 	}); err != nil {
 		log.Fatal(err)
 	}
-	makeHTTPTransport(*httpListenAddr, svc)
+	log.Fatal(makeHTTPTransport(*httpListenAddr, svc))
 }
 
 func makeGRPCTransport(listenAddr string, svc Aggregator) error {
@@ -59,12 +60,13 @@ func makeGRPCTransport(listenAddr string, svc Aggregator) error {
 	return server.Serve(listener)
 }
 
-func makeHTTPTransport(listenAddr string, svc Aggregator) {
+func makeHTTPTransport(listenAddr string, svc Aggregator) error {
 	fmt.Println("HTTP transport running on port", listenAddr)
 	http.HandleFunc("/aggregate", handleAggregate(svc))
 	http.HandleFunc("/invoice", handleGetInvoice(svc))
+	http.Handle("/metrics", promhttp.Handler())
 
-	log.Fatal(http.ListenAndServe(listenAddr, nil))
+	return http.ListenAndServe(listenAddr, nil)
 }
 
 func handleAggregate(svc Aggregator) http.HandlerFunc {
@@ -89,6 +91,8 @@ func handleGetInvoice(svc Aggregator) http.HandlerFunc {
 			return
 		}
 		obuID, err := strconv.Atoi(values[0])
+		fmt.Println(obuID)
+
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid obu id"})
 			return
