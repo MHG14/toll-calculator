@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -59,13 +61,11 @@ func (dr *DataReciever) wsRecieveLoop() {
 			log.Println(err)
 			continue
 		}
+		data.RequestID = rand.Intn(math.MaxInt)
 
 		if err := dr.produceData(data); err != nil {
 			fmt.Println("Kafka produce error:", err)
 		}
-
-		// fmt.Printf("recieved OBU data from [%d] :: <Lat: %.2f, Long: %.2f>\n", data.OBUID, data.Lat, data.Long)
-		// dr.msgch <- data
 	}
 }
 

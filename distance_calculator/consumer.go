@@ -54,6 +54,10 @@ func (c *KafkaConsumer) readMessageLoop() {
 		var data types.OBUData
 		if err := json.Unmarshal(msg.Value, &data); err != nil {
 			logrus.Errorf("JSON serialization error %s", err)
+			logrus.WithFields(logrus.Fields{
+				"err": err,
+				"requestID": data.RequestID,
+			})
 			continue
 		}
 		distance, err := c.calcService.CalculateDistance(data)
