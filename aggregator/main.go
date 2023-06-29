@@ -3,14 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
-	"strconv"
+	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/mhg14/toll-calculator/aggregator/client"
 	"github.com/mhg14/toll-calculator/types"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -18,19 +18,20 @@ import (
 )
 
 func main() {
-	httpListenAddr := flag.String("httpListenAddr", ":5000", "the listen address of the http server")
-	grpcListenAddr := flag.String("grpcListenAddr", ":4000", "the listen address of the grpc server")
-
-	flag.Parse()
-	store := NewMemoryStore()
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
 	var (
-		svc = NewInvoiceAggregator(store)
+		store          = NewMemoryStore()
+		svc            = NewInvoiceAggregator(store)
+		httpListenAddr = os.Getenv("AGG_HTTP_ENDPOINT")
+		grpcListenAddr = os.Getenv("AGG_GRPC_ENDPOINT")
 	)
 	svc = NewMetricsMiddleware(svc)
 	svc = NewLogMiddleware(svc)
-	go makeGRPCTransport(*grpcListenAddr, svc)
+	go makeGRPCTransport(grpcListenAddr, svc)
 
-	c, err := client.NewGRPCClient(*grpcListenAddr)
+	c, err := client.NewGRPCClient(grpcListenAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func main() {
 	}); err != nil {
 		log.Fatal(err)
 	}
-	log.Fatal(makeHTTPTransport(*httpListenAddr, svc))
+	log.Fatal(makeHTTPTransport(httpListenAddr, svc))
 }
 
 func makeGRPCTransport(listenAddr string, svc Aggregator) error {
@@ -61,49 +62,15 @@ func makeGRPCTransport(listenAddr string, svc Aggregator) error {
 }
 
 func makeHTTPTransport(listenAddr string, svc Aggregator) error {
+	aggMetricsHandler := newHTTPMetricHandler("aggregate")
+	invoiceMetricsHandler := newHTTPMetricHandler("invoice")
+
 	fmt.Println("HTTP transport running on port", listenAddr)
-	http.HandleFunc("/aggregate", handleAggregate(svc))
-	http.HandleFunc("/invoice", handleGetInvoice(svc))
+	http.HandleFunc("/aggregate", aggMetricsHandler.instrument(handleAggregate(svc)))
+	http.HandleFunc("/invoice", invoiceMetricsHandler.instrument(handleGetInvoice(svc)))
 	http.Handle("/metrics", promhttp.Handler())
 
 	return http.ListenAndServe(listenAddr, nil)
-}
-
-func handleAggregate(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var distance types.Distance
-		if err := json.NewDecoder(r.Body).Decode(&distance); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		if err := svc.AggregateDistance(distance); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-	}
-}
-
-func handleGetInvoice(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		values, ok := r.URL.Query()["obu"]
-		if !ok {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing obu id"})
-			return
-		}
-		obuID, err := strconv.Atoi(values[0])
-		fmt.Println(obuID)
-
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid obu id"})
-			return
-		}
-		invoice, err := svc.CalculateInvoice(obuID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		writeJSON(w, http.StatusOK, invoice)
-	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) error {

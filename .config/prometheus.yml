@@ -5,12 +5,12 @@ global:
 
 
 scrape_configs:
-  - job_name: "aggregator"
-    metrics_path: /metrics
-    scrape_interval: "15s"
-    scrape_timeout: "10s"
-    scheme: http
-    follow_redirects: true
-    static_configs:
-      - targets:
-          - "localhost:5000"
+- job_name: aggregator
+  metrics_path: /metrics
+  scrape_interval: "15s"
+  scrape_timeout: "10s"
+  scheme: http
+  follow_redirects: true
+  static_configs:
+    - targets:
+      - 172.18.0.1:5000
