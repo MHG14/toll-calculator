@@ -2,15 +2,56 @@ package aggendpoint
 
 import (
 	"context"
+	"time"
 
+	"github.com/go-kit/kit/circuitbreaker"
 	"github.com/go-kit/kit/endpoint"
+	"github.com/go-kit/kit/metrics/prometheus"
+	"github.com/go-kit/kit/ratelimit"
+	"github.com/go-kit/log"
+
+	"golang.org/x/time/rate"
+
 	"github.com/mhg14/toll-calculator/gokit-aggregator/aggsvc/aggservice"
 	"github.com/mhg14/toll-calculator/types"
+	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	"github.com/sony/gobreaker"
 )
 
 type Set struct {
 	AggregateEndpoint endpoint.Endpoint
 	CalculateEndpoint endpoint.Endpoint
+}
+
+func New(svc aggservice.Service, logger log.Logger) Set {
+	var aggregateEndpoint endpoint.Endpoint
+	duration := prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
+		Namespace: "toll_calculator",
+		Subsystem: "aggservice",
+		Name:      "request_duration_seconds",
+		Help:      "Request duration in seconds.",
+	}, []string{"method", "success"})
+	{
+		aggregateEndpoint = MakeAggregateEndpoint(svc)
+
+		aggregateEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 1))(aggregateEndpoint)
+		aggregateEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(aggregateEndpoint)
+		aggregateEndpoint = LoggingMiddleware(log.With(logger, "method", "Aggregate"))(aggregateEndpoint)
+		aggregateEndpoint = InstrumentingMiddleware(duration.With("method", "Aggregate"))(aggregateEndpoint)
+	}
+	var calculateEndpoint endpoint.Endpoint
+	{
+		calculateEndpoint = MakeCalculateEndpoint(svc)
+
+		calculateEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Limit(1), 100))(calculateEndpoint)
+		calculateEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(calculateEndpoint)
+		calculateEndpoint = LoggingMiddleware(log.With(logger, "method", "Calculate"))(calculateEndpoint)
+		calculateEndpoint = InstrumentingMiddleware(duration.With("method", "Calculate"))(calculateEndpoint)
+	}
+	return Set{
+		AggregateEndpoint: aggregateEndpoint,
+		CalculateEndpoint: calculateEndpoint,
+	}
 }
 
 type CalculateRequest struct {

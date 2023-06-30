@@ -3,6 +3,7 @@ package aggservice
 import (
 	"context"
 
+	"github.com/go-kit/log"
 	"github.com/mhg14/toll-calculator/types"
 )
 
@@ -33,21 +34,17 @@ func (svc *BasicService) Calculate(_ context.Context, obuID int) (*types.Invoice
 		return nil, err
 	}
 	inv := &types.Invoice{
-		OBUID: obuID,
+		OBUID:         obuID,
 		TotalDistance: dist,
-		TotalAmount: basePrice * dist,
-
+		TotalAmount:   basePrice * dist,
 	}
 	return inv, nil
 }
 
-
-
-
-func NewAggregatorService() Service { 
+func New(logger log.Logger) Service {
 	var svc Service
 	svc = newBasicService(NewMemoryStore())
-	svc = newLoggingMiddleware()(svc)
+	svc = newLoggingMiddleware(logger)(svc)
 	svc = newInstrumentationMiddleware()(svc)
 	return svc
 }
